@@ -44,3 +44,6 @@ export interface Contribution { key: string; subjectId: QualifiedId; source: str
 export interface Projection { subjects: SubjectDefinition[]; tags: Map<string, Contribution[]>; values: Map<string, { value: number; trace: string[] }>; selected: Map<string, "active" | "suspended">; owned: Map<string, Set<QualifiedId>>; slots: Map<string, QualifiedId>; diagnostics: string[] }
 export interface Session { modules: ModuleDefinition[]; events: DecisionEvent[]; projection: Projection }
 export type Command = { type: "selectChoice" | "unselectChoice" | "takeAction"; choiceId: QualifiedId; subjectId: QualifiedId } | { type: "assignSlot"; optionId: QualifiedId; slotId: QualifiedId; subjectId: QualifiedId } | { type: "unassignSlot"; slotId: QualifiedId; subjectId: QualifiedId } | { type: "resolveEncounter"; encounterId: QualifiedId; seed?: string };
+export type ValidationSeverity = "error" | "warning";
+export interface ValidationDiagnostic { severity: ValidationSeverity; path: string; message: string }
+export interface ValidationResult { valid: boolean; diagnostics: ValidationDiagnostic[] }

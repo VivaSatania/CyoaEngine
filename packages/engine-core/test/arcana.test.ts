@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { apply, createSession, explain, type ModuleDefinition } from "../src/index.js";
+import { apply, createSession, explain, validateModules, type ModuleDefinition } from "../src/index.js";
 
 const moduleFixture = JSON.parse(readFileSync("examples/arcana-crossroads/module.json", "utf8")) as ModuleDefinition;
 const mage = "com.example.arcana/character/mage";
@@ -31,4 +31,15 @@ test("Arcana fixture supports toggles, slots, rules, traces, and replay", () => 
   const replay = createSession([moduleFixture]);
   for (const event of session.events) apply(replay, event.payload as any);
   assert.equal(replay.projection.values.get(`${mage}::${speed}`)?.value, 24);
+});
+
+test("module validator catches dangling references before play", () => {
+  assert.deepEqual(validateModules([moduleFixture]), { valid: true, diagnostics: [] });
+
+  const broken: ModuleDefinition = structuredClone(moduleFixture);
+  broken.choices[0].effects.push({ type: "grantTag", subject: { ref: "self" }, tag: "missing/tag" });
+
+  const validation = validateModules([broken]);
+  assert.equal(validation.valid, false);
+  assert.ok(validation.diagnostics.some((diagnostic) => diagnostic.message === "Unknown tag missing/tag"));
 });
