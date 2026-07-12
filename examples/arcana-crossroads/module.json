@@ -1,0 +1,31 @@
+{
+  "id": "com.example.arcana-crossroads",
+  "version": "0.1.0",
+  "title": "Arcana at the Crossroads",
+  "subjects": [
+    { "id": "com.example.arcana/character/mage", "kind": "character", "displayName": { "default": "Player Mage" }, "controller": "player", "ownerModuleId": "com.example.arcana-crossroads" },
+    { "id": "com.example.arcana/character/bandit", "kind": "character", "displayName": { "default": "Road Bandit" }, "controller": "engine", "ownerModuleId": "com.example.arcana-crossroads" }
+  ],
+  "tags": [
+    { "id": "org.cyoa.core/tag/mage", "label": { "default": "Mage" }, "appliesTo": ["character"] },
+    { "id": "org.cyoa.core/tag/undead", "label": { "default": "Undead" }, "appliesTo": ["character"] },
+    { "id": "com.example.arcana/tag/concentrating-on-haste", "label": { "default": "Concentrating on Haste" }, "appliesTo": ["character"] }
+  ],
+  "values": [
+    { "id": "org.cyoa.core/value/hp", "label": { "default": "HP" }, "appliesTo": ["character"], "default": "10" },
+    { "id": "org.cyoa.core/value/damage", "label": { "default": "Damage" }, "appliesTo": ["character"], "default": "2" },
+    { "id": "org.cyoa.core/value/resistance", "label": { "default": "Resistance" }, "appliesTo": ["character"], "default": "0" },
+    { "id": "org.cyoa.core/value/speed", "label": { "default": "Speed" }, "appliesTo": ["character"], "default": "10" },
+    { "id": "org.cyoa.core/value/level", "label": { "default": "Level" }, "appliesTo": ["character"], "default": "1" },
+    { "id": "org.cyoa.core/value/talent-points", "label": { "default": "Talent Points" }, "appliesTo": ["character"], "default": "0" }
+  ],
+  "slots": [{ "id": "org.cyoa.core/slot/concentration", "label": { "default": "Concentration" }, "capacity": 1, "accepts": ["com.example.arcana/option/haste"] }],
+  "options": [{ "id": "com.example.arcana/option/haste", "title": { "default": "Haste" }, "requiredSlot": "org.cyoa.core/slot/concentration", "effects": [{ "type": "grantTag", "subject": { "ref": "self" }, "tag": "com.example.arcana/tag/concentrating-on-haste" }] }],
+  "choices": [
+    { "id": "com.example.arcana/choice/arcane-training", "title": { "default": "Arcane Training" }, "mode": "toggle", "subject": { "ref": "self" }, "effects": [{ "type": "grantTag", "subject": { "ref": "self" }, "tag": "org.cyoa.core/tag/mage" }, { "type": "modifyValue", "subject": { "ref": "self" }, "value": "org.cyoa.core/value/speed", "operation": "flatAdd", "amount": { "op": "mul", "args": [{ "op": "value", "subject": { "ref": "self" }, "value": "org.cyoa.core/value/level" }, { "literal": 2 }] } }, { "type": "ownOption", "subject": { "ref": "self" }, "option": "com.example.arcana/option/haste" }] },
+    { "id": "com.example.arcana/choice/grave-touched", "title": { "default": "Grave Touched" }, "mode": "toggle", "subject": { "ref": "self" }, "effects": [{ "type": "grantTag", "subject": { "ref": "self" }, "tag": "org.cyoa.core/tag/undead" }] },
+    { "id": "com.example.arcana/choice/claim-crossroads-reward", "title": { "default": "Claim Crossroads Reward" }, "mode": "action", "subject": { "ref": "self" }, "requires": { "op": "hasTag", "subject": { "ref": "self" }, "tag": "org.cyoa.core/tag/mage" }, "effects": [{ "type": "modifyValue", "subject": { "ref": "self" }, "value": "org.cyoa.core/value/talent-points", "operation": "flatAdd", "amount": { "literal": 1 } }] }
+  ],
+  "rules": [{ "id": "com.example.arcana/rule/haste-speed", "when": { "op": "hasTag", "subject": { "ref": "self" }, "tag": "com.example.arcana/tag/concentrating-on-haste" }, "forEach": { "kind": "character", "controller": "player" }, "outputs": [{ "type": "modifyValue", "subject": { "ref": "self" }, "value": "org.cyoa.core/value/speed", "operation": "percentAdd", "amount": { "literal": 1 } }], "presentation": "visible" }],
+  "encounters": [{ "id": "com.example.arcana/encounter/crossroads-duel", "title": { "default": "Crossroads Duel" }, "actor": { "id": "com.example.arcana/character/mage" }, "opponent": { "id": "com.example.arcana/character/bandit" }, "rounds": 3 }]
+}
