@@ -11,6 +11,9 @@ export function createSession(modules: ModuleDefinition[]): Session {
 }
 
 export function apply(session: Session, command: Command): { accepted: boolean; events: DecisionEvent[]; projection: Projection; diagnostics: string[] } {
+  const diagnostics = validateCommand(session, command);
+  if (diagnostics.length > 0) return { accepted: false, events: [], projection: session.projection, diagnostics };
+
   const definitionId = "choiceId" in command ? command.choiceId : "optionId" in command ? command.optionId : "slotId" in command ? command.slotId : command.encounterId;
   const event: DecisionEvent = { eventId: `evt-${session.events.length + 1}`, schemaVersion: 1, sequence: session.events.length + 1, type: eventType(command), subjectId: "subjectId" in command ? command.subjectId : undefined, definitionId, decisionInstanceId: `${definitionId}:${"subjectId" in command ? command.subjectId : "world"}`, payload: { ...command }, seed: "seed" in command ? command.seed : undefined, recordedAt: eventTime() };
   session.events.push(event);
@@ -20,6 +23,21 @@ export function apply(session: Session, command: Command): { accepted: boolean; 
 
 export function explain(projection: Projection, subjectId: QualifiedId, valueId: QualifiedId): string[] {
   return projection.values.get(key(subjectId, valueId))?.trace ?? [`No value ${valueId} for ${subjectId}`];
+}
+
+function validateCommand(session: Session, command: Command): string[] {
+  if (command.type !== "takeAction") return [];
+
+  const choice = session.modules.flatMap((m) => m.choices).find((c) => c.id === command.choiceId);
+  if (!choice) return [`Unknown action choice ${command.choiceId}`];
+  if (choice.mode !== "action") return [`Choice ${command.choiceId} is not an action`];
+
+  try {
+    if (Boolean(evaluate(choice.requires, { projection: session.projection, self: command.subjectId }))) return [];
+    return [`Action ${command.choiceId} requirements are not met for ${command.subjectId}`];
+  } catch (error) {
+    return [`Action ${command.choiceId} requirements could not be evaluated: ${String(error)}`];
+  }
 }
 
 function eventType(command: Command): DecisionEvent["type"] {

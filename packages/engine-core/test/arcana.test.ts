@@ -32,3 +32,15 @@ test("Arcana fixture supports toggles, slots, rules, traces, and replay", () => 
   for (const event of session.events) apply(replay, event.payload as any);
   assert.equal(replay.projection.values.get(`${mage}::${speed}`)?.value, 24);
 });
+
+test("Action commands are rejected when requirements are unmet", () => {
+  const session = createSession([moduleFixture]);
+
+  const result = apply(session, { type: "takeAction", choiceId: "com.example.arcana/choice/claim-crossroads-reward", subjectId: mage });
+
+  assert.equal(result.accepted, false);
+  assert.equal(result.events.length, 0);
+  assert.equal(session.events.length, 0);
+  assert.equal(session.projection.values.get(`${mage}::org.cyoa.core/value/talent-points`)?.value, 0);
+  assert.ok(result.diagnostics.some((line) => line.includes("requirements are not met")));
+});
