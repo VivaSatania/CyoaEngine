@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { validateModules, type ModuleDefinition, type ValidationDiagnostic } from "../../engine-core/src/index.js";
 
 const usage = `Usage: cyoa validate <module.json> [module.json ...]\n\nCommands:\n  validate   Validate one or more CYOA module JSON files.\n`;
@@ -48,4 +49,14 @@ function formatDiagnostic(diagnostic: ValidationDiagnostic): string {
   return `${diagnostic.severity.toUpperCase()} ${diagnostic.path}: ${diagnostic.message}`;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) process.exitCode = main();
+function isEntrypoint(metaUrl: string, argvPath: string | undefined): boolean {
+  if (!argvPath) return false;
+
+  try {
+    return realpathSync(fileURLToPath(metaUrl)) === realpathSync(argvPath);
+  } catch {
+    return false;
+  }
+}
+
+if (isEntrypoint(import.meta.url, process.argv[1])) process.exitCode = main();

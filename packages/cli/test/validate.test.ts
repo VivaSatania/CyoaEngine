@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -15,6 +15,17 @@ test("CLI validates the Arcana fixture", () => {
 
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /Valid CYOA module set \(1 module\)\./);
+});
+
+test("CLI runs through a symlinked package binary path", () => {
+  const dir = mkdtempSync(join(tmpdir(), "cyoa-cli-bin-"));
+  const binPath = join(dir, "cyoa");
+  symlinkSync(join(process.cwd(), cli), binPath);
+
+  const result = spawnSync(process.execPath, [binPath, "--help"], { encoding: "utf8" });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Usage: cyoa validate/);
 });
 
 test("CLI reports semantic diagnostics for invalid modules", () => {
