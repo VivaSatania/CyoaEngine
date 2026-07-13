@@ -123,7 +123,10 @@ function project(session: Session): Projection {
   for (const [slotKey, optionId] of assigned) {
     const [subjectId, slotId] = slotKey.split("::");
     const option = options.get(optionId);
-    if (option && owns(projection, subjectId, option)) emitEffects(projection, option.effects, subjectId, `Slot ${slotId}: ${option.title.default}`);
+    if (option && owns(projection, subjectId, option)) {
+      projection.slots.set(slotKey, optionId);
+      emitEffects(projection, option.effects, subjectId, `Slot ${slotId}: ${option.title.default}`);
+    }
   }
   evaluateRules(session, projection);
   calculateValues(session.modules, projection);

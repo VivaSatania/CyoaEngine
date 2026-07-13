@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "node --test dist/packages/engine-core/test/*.test.js",
-    "check": "npm run build && npm test"
+    "test": "npm run build && node --test dist/packages/engine-core/test/*.test.js",
+    "check": "npm test"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",

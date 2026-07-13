@@ -19,8 +19,16 @@ test("Arcana fixture supports toggles, slots, rules, traces, and replay", () => 
   assert.ok(session.projection.owned.get(mage)?.has(haste));
 
   apply(session, { type: "assignSlot", optionId: haste, slotId: concentration, subjectId: mage });
+  assert.equal(session.projection.slots.get(`${mage}::${concentration}`), haste);
   assert.equal(session.projection.values.get(`${mage}::${speed}`)?.value, 24);
   assert.ok(explain(session.projection, mage, speed).some((line) => line.includes("percentAdd total 1")));
+
+  apply(session, { type: "unassignSlot", slotId: concentration, subjectId: mage });
+  assert.equal(session.projection.slots.has(`${mage}::${concentration}`), false);
+  assert.equal(session.projection.values.get(`${mage}::${speed}`)?.value, 12);
+
+  apply(session, { type: "assignSlot", optionId: haste, slotId: concentration, subjectId: mage });
+  assert.equal(session.projection.values.get(`${mage}::${speed}`)?.value, 24);
 
   apply(session, { type: "selectChoice", choiceId: "com.example.arcana/choice/grave-touched", subjectId: mage });
   assert.equal(session.projection.tags.get(`${mage}::${undead}`)?.length, 1);
