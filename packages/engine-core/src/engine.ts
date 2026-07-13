@@ -155,6 +155,12 @@ function calculateValues(modules: ModuleDefinition[], projection: Projection) {
   for (const subject of projection.subjects) for (const def of modules.flatMap((m) => m.values).filter((v) => v.appliesTo.includes(subject.kind))) {
     const raw = contributions.filter(([k]) => k === key(subject.id, def.id)).flatMap(([, v]) => v.trace.filter((t) => t.startsWith("{")).map((t) => JSON.parse(t) as Contribution));
     const overrides = raw.filter((c) => c.operation === "override").sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
+    const topOverridePriority = overrides[0]?.priority ?? 0;
+    const topOverrides = overrides.filter((override) => (override.priority ?? 0) === topOverridePriority);
+    const conflictingOverrides = new Set(topOverrides.map((override) => override.amount ?? 0));
+    if (conflictingOverrides.size > 1) {
+      projection.diagnostics.push(`Conflicting equal-priority overrides for ${subject.id} ${def.id} at priority ${topOverridePriority}`);
+    }
     let value = overrides[0]?.amount ?? Number(def.default);
     const trace = [`Default base ${def.default}`];
     for (const op of ["baseAdd", "flatAdd"] as const) for (const c of raw.filter((x) => x.operation === op)) { value += c.amount ?? 0; trace.push(`${c.source} (${op}) ${c.amount}`); }
