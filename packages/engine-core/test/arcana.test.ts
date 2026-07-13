@@ -71,3 +71,29 @@ test("module validator catches dangling references before play", () => {
   assert.equal(validation.valid, false);
   assert.ok(validation.diagnostics.some((diagnostic) => diagnostic.message === "Unknown tag missing/tag"));
 });
+
+
+test("projection reports conflicting equal-priority value overrides", () => {
+  const fixture: ModuleDefinition = structuredClone(moduleFixture);
+  fixture.choices.push({
+    id: "com.example.arcana/choice/swift-form",
+    title: { default: "Swift Form" },
+    mode: "toggle",
+    subject: { ref: "self" },
+    effects: [{ type: "modifyValue", subject: { ref: "self" }, value: speed, operation: "override", amount: { literal: 20 }, priority: 1 }]
+  });
+  fixture.choices.push({
+    id: "com.example.arcana/choice/slow-form",
+    title: { default: "Slow Form" },
+    mode: "toggle",
+    subject: { ref: "self" },
+    effects: [{ type: "modifyValue", subject: { ref: "self" }, value: speed, operation: "override", amount: { literal: 5 }, priority: 1 }]
+  });
+
+  const session = createSession([fixture]);
+  apply(session, { type: "selectChoice", choiceId: "com.example.arcana/choice/swift-form", subjectId: mage });
+  const result = apply(session, { type: "selectChoice", choiceId: "com.example.arcana/choice/slow-form", subjectId: mage });
+
+  assert.equal(result.accepted, true);
+  assert.ok(result.diagnostics.some((diagnostic) => diagnostic.includes("Conflicting equal-priority overrides")));
+});
