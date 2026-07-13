@@ -33,6 +33,26 @@ test("Arcana fixture supports toggles, slots, rules, traces, and replay", () => 
   assert.equal(replay.projection.values.get(`${mage}::${speed}`)?.value, 24);
 });
 
+test("engine rejects invalid commands and resolves encounter winners", () => {
+  const session = createSession([moduleFixture]);
+
+  const lockedReward = apply(session, { type: "takeAction", choiceId: "com.example.arcana/choice/claim-crossroads-reward", subjectId: mage });
+  assert.equal(lockedReward.accepted, false);
+  assert.ok(lockedReward.diagnostics.some((diagnostic) => diagnostic.includes("Requirements not met")));
+  assert.equal(session.events.length, 0);
+
+  const unownedSlot = apply(session, { type: "assignSlot", optionId: haste, slotId: concentration, subjectId: mage });
+  assert.equal(unownedSlot.accepted, false);
+  assert.ok(unownedSlot.diagnostics.some((diagnostic) => diagnostic.includes("does not own option")));
+
+  apply(session, { type: "selectChoice", choiceId: "com.example.arcana/choice/arcane-training", subjectId: mage });
+  const encounter = apply(session, { type: "resolveEncounter", encounterId: "com.example.arcana/encounter/crossroads-duel", seed: "fixed" });
+  assert.equal(encounter.accepted, true);
+  assert.equal(encounter.events[0].payload.winner, mage);
+  assert.equal(session.projection.tags.get(`${mage}::org.cyoa.core/tag/duel-winner`)?.length, 1);
+});
+
+
 test("module validator catches dangling references before play", () => {
   assert.deepEqual(validateModules([moduleFixture]), { valid: true, diagnostics: [] });
 
