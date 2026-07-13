@@ -1,4 +1,4 @@
-import { evaluate, resolveSelector } from "../../expression/src/index.js";
+import { evaluate, oneSubject, resolveSelector } from "../../expression/src/index.js";
 import type { Command, Contribution, DecisionEvent, EffectTemplate, ModuleDefinition, Projection, QualifiedId, Session, SlottableOptionDefinition } from "./types.js";
 
 const key = (subject: QualifiedId, fact: QualifiedId) => `${subject}::${fact}`;
@@ -11,8 +11,12 @@ export function createSession(modules: ModuleDefinition[]): Session {
 }
 
 export function apply(session: Session, command: Command): { accepted: boolean; events: DecisionEvent[]; projection: Projection; diagnostics: string[] } {
+  const validation = validateCommand(session, command);
+  if (validation.length > 0) return { accepted: false, events: [], projection: session.projection, diagnostics: validation };
+
   const definitionId = "choiceId" in command ? command.choiceId : "optionId" in command ? command.optionId : "slotId" in command ? command.slotId : command.encounterId;
-  const event: DecisionEvent = { eventId: `evt-${session.events.length + 1}`, schemaVersion: 1, sequence: session.events.length + 1, type: eventType(command), subjectId: "subjectId" in command ? command.subjectId : undefined, definitionId, decisionInstanceId: `${definitionId}:${"subjectId" in command ? command.subjectId : "world"}`, payload: { ...command }, seed: "seed" in command ? command.seed : undefined, recordedAt: eventTime() };
+  const payload = command.type === "resolveEncounter" ? { ...command, ...resolveEncounterPayload(session, command.encounterId) } : { ...command };
+  const event: DecisionEvent = { eventId: `evt-${session.events.length + 1}`, schemaVersion: 1, sequence: session.events.length + 1, type: eventType(command), subjectId: "subjectId" in command ? command.subjectId : undefined, definitionId, decisionInstanceId: `${definitionId}:${"subjectId" in command ? command.subjectId : "world"}`, payload, seed: "seed" in command ? command.seed : undefined, recordedAt: eventTime() };
   session.events.push(event);
   session.projection = project(session);
   return { accepted: true, events: [event], projection: session.projection, diagnostics: session.projection.diagnostics };
@@ -20,6 +24,57 @@ export function apply(session: Session, command: Command): { accepted: boolean; 
 
 export function explain(projection: Projection, subjectId: QualifiedId, valueId: QualifiedId): string[] {
   return projection.values.get(key(subjectId, valueId))?.trace ?? [`No value ${valueId} for ${subjectId}`];
+}
+
+function validateCommand(session: Session, command: Command): string[] {
+  const diagnostics: string[] = [];
+  const choices = new Map(session.modules.flatMap((m) => m.choices.map((c) => [c.id, c])));
+  const slots = new Map(session.modules.flatMap((m) => (m.slots ?? []).map((slot) => [slot.id, slot])));
+  const options = new Map(session.modules.flatMap((m) => (m.options ?? []).map((option) => [option.id, option])));
+  const encounters = new Map(session.modules.flatMap((m) => (m.encounters ?? []).map((encounter) => [encounter.id, encounter])));
+
+  if ("subjectId" in command && !session.projection.subjects.some((subject) => subject.id === command.subjectId)) diagnostics.push(`Unknown subject ${command.subjectId}`);
+  if (command.type === "selectChoice" || command.type === "unselectChoice" || command.type === "takeAction") {
+    const choice = choices.get(command.choiceId);
+    if (!choice) diagnostics.push(`Unknown choice ${command.choiceId}`);
+    else {
+      if (command.type !== "takeAction" && choice.mode !== "toggle") diagnostics.push(`Choice ${command.choiceId} is not a toggle choice`);
+      if (command.type === "takeAction" && choice.mode !== "action") diagnostics.push(`Choice ${command.choiceId} is not an action choice`);
+      if (command.type !== "unselectChoice") {
+        try { if (!Boolean(evaluate(choice.requires, { projection: session.projection, self: command.subjectId }))) diagnostics.push(`Requirements not met for choice ${command.choiceId}`); }
+        catch (error) { diagnostics.push(`Could not evaluate requirements for choice ${command.choiceId}: ${String(error)}`); }
+      }
+    }
+  }
+  if (command.type === "assignSlot") {
+    const option = options.get(command.optionId);
+    const slot = slots.get(command.slotId);
+    if (!option) diagnostics.push(`Unknown option ${command.optionId}`);
+    if (!slot) diagnostics.push(`Unknown slot ${command.slotId}`);
+    if (option && slot) {
+      if (option.requiredSlot !== slot.id) diagnostics.push(`Option ${option.id} requires slot ${option.requiredSlot}`);
+      if (!slot.accepts.includes(option.id)) diagnostics.push(`Slot ${slot.id} does not accept option ${option.id}`);
+      if (!owns(session.projection, command.subjectId, option)) diagnostics.push(`${command.subjectId} does not own option ${option.id}`);
+    }
+  }
+  if (command.type === "unassignSlot" && !slots.has(command.slotId)) diagnostics.push(`Unknown slot ${command.slotId}`);
+  if (command.type === "resolveEncounter" && !encounters.has(command.encounterId)) diagnostics.push(`Unknown encounter ${command.encounterId}`);
+  return diagnostics;
+}
+
+function resolveEncounterPayload(session: Session, encounterId: QualifiedId): Record<string, unknown> {
+  const encounter = session.modules.flatMap((m) => m.encounters ?? []).find((candidate) => candidate.id === encounterId);
+  if (!encounter) return {};
+  const actor = oneSubject(encounter.actor, { projection: session.projection });
+  const opponent = oneSubject(encounter.opponent, { projection: session.projection });
+  const score = (subjectId: QualifiedId) => valueOf(session.projection, subjectId, "org.cyoa.core/value/damage") * (encounter.rounds ?? 1) + valueOf(session.projection, subjectId, "org.cyoa.core/value/speed") - valueOf(session.projection, subjectId, "org.cyoa.core/value/resistance");
+  const actorScore = score(actor);
+  const opponentScore = score(opponent);
+  return { actor, opponent, actorScore, opponentScore, winner: actorScore >= opponentScore ? actor : opponent };
+}
+
+function valueOf(projection: Projection, subjectId: QualifiedId, valueId: QualifiedId): number {
+  return projection.values.get(key(subjectId, valueId))?.value ?? 0;
 }
 
 function eventType(command: Command): DecisionEvent["type"] {
